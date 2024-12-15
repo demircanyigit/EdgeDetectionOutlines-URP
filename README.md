@@ -71,10 +71,6 @@ The edge detection is performed in a single pass and uses built-in depth and nor
 - More complex algorithms (like Scharr) are slightly more expensive than simpler ones (like Roberts)
 - The effect scales well with resolution
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details
-
 ## Acknowledgments
 
 - Edge detection algorithms based on standard image processing techniques
