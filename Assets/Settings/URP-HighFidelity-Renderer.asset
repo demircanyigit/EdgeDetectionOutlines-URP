@@ -17,11 +17,11 @@ MonoBehaviour:
     injectionPoint: 400
     edgeColor: {r: 0, g: 0, b: 0, a: 1}
     useDepthEdges: 1
-    depthEdgeDetectionType: 4
-    depthThreshold: 0
+    depthEdgeDetectionType: 5
+    depthThreshold: 0.018
     useNormalEdges: 1
-    normalEdgeDetectionType: 0
-    normalThreshold: 0
+    normalEdgeDetectionType: 5
+    normalThreshold: 0.138
   edgeDetectionShader: {fileID: 4800000, guid: 208a3d4cbfe649b4cbaaa10f609295d5, type: 3}
 --- !u!114 &-1878332245247344467
 MonoBehaviour:
