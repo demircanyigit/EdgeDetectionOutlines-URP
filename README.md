@@ -60,8 +60,7 @@ A high-quality edge detection render feature for Unity's Universal Render Pipeli
 ## Requirements
 
 - Unity 2021.3 or newer
-- Universal Render Pipeline package
-- Shader Model 4.5 or higher
+
 
 ## Performance Considerations
 
