@@ -15,6 +15,11 @@ public class EdgeDetectionPass : ScriptableRenderPass
     private static readonly int UseNormalId = Shader.PropertyToID("_UseNormalEdges");
     private static readonly int NormalEdgeTypeId = Shader.PropertyToID("_NormalEdgeDetectionType");
     private static readonly int NormalSmoothMinId = Shader.PropertyToID("_NormalSmoothMin");
+    private static readonly int UseDiffuseId = Shader.PropertyToID("_UseDiffuseEdges");
+    private static readonly int DiffuseEdgeTypeId = Shader.PropertyToID("_DiffuseEdgeDetectionType");
+    private static readonly int DiffuseSmoothMinId = Shader.PropertyToID("_DiffuseSmoothMin");
+    private static readonly int UseDiffuseHueId = Shader.PropertyToID("_UseDiffuseHue");
+    private static readonly int DiffuseIntensityId = Shader.PropertyToID("_DiffuseIntensity");
 
     public EdgeDetectionPass(Material material, EdgeDetectionFeature.EdgeDetectionSettings settings)
     {
@@ -30,6 +35,7 @@ public class EdgeDetectionPass : ScriptableRenderPass
         descriptor.depthBufferBits = 0;
         sourceColorHandle = renderingData.cameraData.renderer.cameraColorTargetHandle;
         RenderingUtils.ReAllocateIfNeeded(ref tempColorTarget, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempColorTarget");
+        ConfigureInput(ScriptableRenderPassInput.Normal | ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Color);
     }
 
     public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -59,6 +65,12 @@ public class EdgeDetectionPass : ScriptableRenderPass
         material.SetInt(UseNormalId, settings.useNormalEdges ? 1 : 0);
         material.SetInt(NormalEdgeTypeId, (int)settings.normalEdgeDetectionType);
         material.SetFloat(NormalSmoothMinId, settings.normalThreshold);
+        
+        material.SetInt(UseDiffuseId, settings.useDiffuseEdges ? 1 : 0);
+        material.SetInt(DiffuseEdgeTypeId, (int)settings.diffuseEdgeDetectionType);
+        material.SetFloat(DiffuseSmoothMinId, settings.diffuseThreshold);
+        material.SetInt(UseDiffuseHueId, settings.useDiffuseHue ? 1 : 0);
+        material.SetFloat(DiffuseIntensityId, settings.diffuseIntensity);
     }
 
     public void Dispose()

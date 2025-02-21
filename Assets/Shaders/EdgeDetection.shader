@@ -22,11 +22,19 @@ Shader "Hidden/Custom/EdgeDetection"
     float _ExponentialFactor;
     TEXTURE2D(_EdgeControlCurve);
     SAMPLER(sampler_EdgeControlCurve);
+    TEXTURE2D(_GBuffer0); // Diffuse albedo
+    SAMPLER(sampler_GBuffer0);
+    int _UseDiffuseEdges;
+    int _DiffuseEdgeDetectionType;
+    float _DiffuseSmoothMin;
+    float _DiffuseSmoothMax;
+    int _UseDiffuseHue;
+    float _DiffuseIntensity;
 
     float3 GetWorldSpaceNormal(float2 uv)
     {
         float3 viewNormal = SampleSceneNormals(uv);
-        // Use the existing unity_MatrixV to transform from view to world space
+        // Transform from view to world space
         float3 worldNormal = mul(transpose((float3x3)unity_MatrixV), viewNormal);
         return normalize(worldNormal);
     }
@@ -38,7 +46,10 @@ Shader "Hidden/Custom/EdgeDetection"
         float4 clipPos = float4(screenUV, depth, 1.0);
         float4 viewPos = mul(unity_CameraInvProjection, clipPos);
         viewPos = viewPos / viewPos.w;
-        return normalize(-viewPos.xyz);
+        float3 viewDir = normalize(-viewPos.xyz);
+        
+        // Transform to world space
+        return mul((float3x3)unity_CameraToWorld, viewDir);
     }
 
     float ProcessEdge(float edge, float minValue, float maxValue)
@@ -72,7 +83,7 @@ Shader "Hidden/Custom/EdgeDetection"
         float d8 = LinearEyeDepth(SampleSceneDepth(uv + float2(texelSize.x, texelSize.y)), _ZBufferParams);
         
         // Normalize depths relative to center depth and scale down the differences
-        float scale = 0.5 * ndotv; // Scale based on view angle
+        float scale = 0.5; // Scale based on view angle
         d1 = abs(d1 - linearDepth) * scale;
         d2 = abs(d2 - linearDepth) * scale;
         d3 = abs(d3 - linearDepth) * scale;
@@ -109,6 +120,8 @@ Shader "Hidden/Custom/EdgeDetection"
         
         float2 texelSize = _BlitTexture_TexelSize.xy;
         float3 c = GetWorldSpaceNormal(uv);
+        
+        // Sample neighboring normals
         float3 n1 = GetWorldSpaceNormal(uv + float2(-texelSize.x, -texelSize.y));
         float3 n2 = GetWorldSpaceNormal(uv + float2(-texelSize.x, 0));
         float3 n3 = GetWorldSpaceNormal(uv + float2(-texelSize.x, texelSize.y));
@@ -118,25 +131,60 @@ Shader "Hidden/Custom/EdgeDetection"
         float3 n7 = GetWorldSpaceNormal(uv + float2(texelSize.x, 0));
         float3 n8 = GetWorldSpaceNormal(uv + float2(texelSize.x, texelSize.y));
         
-        float sensitivity = 2.0;
-        float v1 = (1 - abs(dot(normalize(c), normalize(n1)))) * sensitivity;
-        float v2 = (1 - abs(dot(normalize(c), normalize(n2)))) * sensitivity;
-        float v3 = (1 - abs(dot(normalize(c), normalize(n3)))) * sensitivity;
-        float v4 = (1 - abs(dot(normalize(c), normalize(n4)))) * sensitivity;
-        float v5 = (1 - abs(dot(normalize(c), normalize(n5)))) * sensitivity;
-        float v6 = (1 - abs(dot(normalize(c), normalize(n6)))) * sensitivity;
-        float v7 = (1 - abs(dot(normalize(c), normalize(n7)))) * sensitivity;
-        float v8 = (1 - abs(dot(normalize(c), normalize(n8)))) * sensitivity;
+        // Calculate normal differences
+        float sensitivity = 1.5;
+        float v1 = saturate(1.0 - dot(c, n1)) * sensitivity;
+        float v2 = saturate(1.0 - dot(c, n2)) * sensitivity;
+        float v3 = saturate(1.0 - dot(c, n3)) * sensitivity;
+        float v4 = saturate(1.0 - dot(c, n4)) * sensitivity;
+        float v5 = saturate(1.0 - dot(c, n5)) * sensitivity;
+        float v6 = saturate(1.0 - dot(c, n6)) * sensitivity;
+        float v7 = saturate(1.0 - dot(c, n7)) * sensitivity;
+        float v8 = saturate(1.0 - dot(c, n8)) * sensitivity;
         
         float2 grad;
         float vc = 0;
         GetGradient(v1, v4, v6, v2, vc, v7, v3, v5, v8, _NormalEdgeDetectionType, true, grad);
+        
         float normalEdge = length(grad);
         float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
         float depthScale = 1.0 / (linearDepth * 0.1 + 1.0);
         normalEdge *= depthScale;
         
         return ProcessEdge(normalEdge, _NormalSmoothMin, _NormalSmoothMax);
+    }
+
+    float GetDiffuseEdge(float2 uv)
+    {
+        if (!_UseDiffuseEdges) return 0;
+        float depth = SampleSceneDepth(uv);
+        if (depth >= 0.99999f) return 0;
+
+        float2 texelSize = _BlitTexture_TexelSize.xy;
+        
+        // Sample GBuffer0 (diffuse color) in 3x3 kernel
+        float3 c = SAMPLE_TEXTURE2D(_GBuffer0, sampler_GBuffer0, uv).rgb;
+        float3 n1 = SAMPLE_TEXTURE2D(_GBuffer0, sampler_GBuffer0, uv + float2(-texelSize.x, -texelSize.y)).rgb;
+        float3 n2 = SAMPLE_TEXTURE2D(_GBuffer0, sampler_GBuffer0, uv + float2(-texelSize.x, 0)).rgb;
+        float3 n3 = SAMPLE_TEXTURE2D(_GBuffer0, sampler_GBuffer0, uv + float2(-texelSize.x, texelSize.y)).rgb;
+        float3 n4 = SAMPLE_TEXTURE2D(_GBuffer0, sampler_GBuffer0, uv + float2(0, -texelSize.y)).rgb;
+        float3 n5 = SAMPLE_TEXTURE2D(_GBuffer0, sampler_GBuffer0, uv + float2(0, texelSize.y)).rgb;
+        float3 n6 = SAMPLE_TEXTURE2D(_GBuffer0, sampler_GBuffer0, uv + float2(texelSize.x, -texelSize.y)).rgb;
+        float3 n7 = SAMPLE_TEXTURE2D(_GBuffer0, sampler_GBuffer0, uv + float2(texelSize.x, 0)).rgb;
+        float3 n8 = SAMPLE_TEXTURE2D(_GBuffer0, sampler_GBuffer0, uv + float2(texelSize.x, texelSize.y)).rgb;
+
+        float2 grad;
+        GetGradient(
+            n1, n4, n6,
+            n2, c, n7,
+            n3, n5, n8,
+            _DiffuseEdgeDetectionType,
+            _UseDiffuseHue != 0,
+            grad
+        );
+        
+        float diffuseEdge = length(grad);
+        return ProcessEdge(diffuseEdge, _DiffuseSmoothMin, _DiffuseSmoothMax);
     }
     
     float4 EdgeDetection(Varyings input) : SV_Target
@@ -149,9 +197,13 @@ Shader "Hidden/Custom/EdgeDetection"
         
         float depthEdge = GetDepthEdge(uv);
         float normalEdge = GetNormalEdge(uv);
+        float diffuseEdge = GetDiffuseEdge(uv) * _DiffuseIntensity;
         
-        float edge = max(depthEdge, normalEdge);
-        return float4(lerp(baseColor.rgb, _EdgeColor.rgb, edge * _EdgeColor.a), baseColor.a);
+        // Combine edges with proper alpha handling
+        float geometryEdge = max(depthEdge, normalEdge);
+        float finalEdge = max(geometryEdge, diffuseEdge);
+        
+        return float4(lerp(baseColor.rgb, _EdgeColor.rgb, finalEdge * _EdgeColor.a), baseColor.a);
     }
     ENDHLSL
     

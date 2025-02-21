@@ -28,12 +28,23 @@ public class EdgeDetectionFeature : ScriptableRendererFeature
         public bool useNormalEdges = true;
         public EdgeDetectionType normalEdgeDetectionType = EdgeDetectionType.Sobel;
         [Range(0, 1f)] public float normalThreshold = 0.1f; // Changed from smoothMin/Max to single threshold
+        
+        public bool useDiffuseEdges = true;
+        public EdgeDetectionType diffuseEdgeDetectionType = EdgeDetectionType.Sobel;
+        [Range(0, 1f)] public float diffuseThreshold = 0.1f;
+        
+        public bool useDiffuseHue = false;
+        [Range(0, 1f)] public float diffuseIntensity = 1.0f;
+        public bool applyToReflections = true;
     }
 
     [SerializeField] public EdgeDetectionSettings settings = new EdgeDetectionSettings();
     [SerializeField] public Shader edgeDetectionShader;
     private Material edgeDetectionMaterial;
     private EdgeDetectionPass edgeDetectionPass;
+
+    [SerializeField]
+    private CameraType cameraType = CameraType.Game | CameraType.SceneView;
 
     public override void Create()
     {
@@ -45,9 +56,13 @@ public class EdgeDetectionFeature : ScriptableRendererFeature
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
-        if (renderingData.cameraData.cameraType == CameraType.Preview || 
-            renderingData.cameraData.cameraType == CameraType.Reflection)
+        if (!RendererFeatureHelper.CameraTypeMatches(cameraType, renderingData.cameraData.cameraType))
             return;
+
+        if (renderingData.cameraData.cameraType == CameraType.Preview || 
+            (!settings.applyToReflections && renderingData.cameraData.cameraType == CameraType.Reflection))
+            return;
+        
         if (edgeDetectionMaterial == null) return;
         edgeDetectionPass.ConfigureInput(ScriptableRenderPassInput.Normal | ScriptableRenderPassInput.Depth);
         renderer.EnqueuePass(edgeDetectionPass);
